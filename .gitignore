@@ -2,3 +2,4 @@
 venv/
 *.png
 .venv/
+.vscode/
