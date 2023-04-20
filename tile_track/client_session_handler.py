@@ -9,7 +9,7 @@ import requests
 import json
 import logging
 
-
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s:%(name)s - %(message)s")
 dotenv_path = join(dirname(__file__), '.env')
 load_dotenv(dotenv_path)
 
@@ -22,6 +22,8 @@ class ClientSessionHandler:
     def __init__(self):
         self.email = os.environ.get("EMAIL")
         self.password = os.environ.get("PASSWORD")
+        self.target_uuid = 'b07ca79b131d71a4'
+        self.target_locate = {"latitude": None, "longitude": None}
         print("Initializing session handler...")
 
     async def start_session(self) -> None:
@@ -35,9 +37,14 @@ class ClientSessionHandler:
             print(f"Session started!: {api}")
             tiles = await api.async_get_tiles()  # get all tiles
             for tile_uuid, tile in tiles.items():
-                print(f"The Tile's name is {tile.name}")
-                print(f"{tile.as_dict()}")
+                if tile_uuid == self.target_uuid:
+                    print(f"The Tile's name is {tile.name}")
+                    print(f"{tile.as_dict()}")
+                    self.target_locate["latitude"] = tile.latitude
+                    self.target_locate["longitude"] = tile.longitude
     
+    def get_location(self) -> tuple:
+        return (self.target_locate["latitude"], self.target_locate["longitude"])
 
                 
                 
@@ -57,7 +64,7 @@ class RequestsOauth1SessionHandler:
                               self.consumer_secret_key,
                               self.access_token,
                               self.access_token_secret)
-        tweet_content = "Hello, world!"
+        tweet_content = "Check, 1 2 3"
         payload = {"text": tweet_content}
         response = oauth.post("https://api.twitter.com/2/tweets", json=payload)
         if response.status_code == 201:
@@ -76,27 +83,44 @@ class GmapsSessionHandler:
     def __init__(self):
         self.api_key = os.environ.get("GOOGLE_MAPS_API_KEY")
         self.base_url = "https://maps.googleapis.com/maps/api/staticmap?"
+        self.lat, self.lng = None, None
+        print(type(self.api_key))
         print("Initializing Gmasps Seeson handler...")
 
     def start_session(self) -> None:
-        CITY = "Osaka,Japan"
+        LOCATE = (self._get_location())
+        LOCATE = str(LOCATE[0]) + "," + str(LOCATE[1])
         ZOOM = 18
-        MARKER = "color:blue%7Clabel:S"
-        URL = self.base_url + "center=" + CITY + "&zoom=" + str(ZOOM) + "&size=1200x1200&markers=" + MARKER + "&key=" + self.api_key
+        MARKER = f"color:red%7C{LOCATE}"
+        
+        URL = self.base_url + "center=" + LOCATE + "&zoom=" + str(ZOOM) + "&size=1200x1200&markers=" + MARKER + "&key=" + self.api_key
         response = requests.get(URL)  # get request
-        with open(f"osaka_{ZOOM}.png", "wb") as file:
+        with open(f"maps.png", "wb") as file:
             if response.status_code != 200:
                 raise Exception(f"Failed to download image: {response.status_code} {response.text}")
             file.write(response.content)
             print("Image successfully Downloaded: ", "map.png")
+            
+    def set_location(self, location: tuple) -> None:
+        self.lat, self.lng = location
+        
+    def _get_location(self) -> tuple:
+        if self.lat is None or self.lng is None:
+            raise Exception("Location has not been set yet!")
+        else:
+            return self.lat, self.lng
+        
 
 
 def main():
-    # tile_handler = ClientSessionHandler()
-    # asyncio.run(tile_handler.start_session())
+    tile_handler = ClientSessionHandler()
+    asyncio.run(tile_handler.start_session())
+    location = tile_handler.get_location()
+    logging.info(f"Location: {location}")
     # text_handler = RequestsOauth1SessionHandler()
     # text_handler.start_session()
     gmaps_handler = GmapsSessionHandler()
+    gmaps_handler.set_location(location)
     gmaps_handler.start_session()
     
 if "__main__" == __name__:
